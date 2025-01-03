@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Доступ к датчикам</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 5vh;
+    }
+    .sensor-box {
+      margin: 20px auto;
+      padding: 20px;
+      width: 350px;
+      border: 2px solid #000;
+      background-color: #f9f9f9;
+    }
+    .modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+    }
+    button {
+      margin: 20px;
+      padding: 12px 24px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Данные акселерометра и гироскопа</h1>
+
+<!-- Модальное окно с запросом доступа -->
+<div id="sensorModal" class="modal">
+  <div class="modal-content">
+    <h2>Требуется доступ к сенсорам</h2>
+    <p>Для работы этой страницы требуется доступ к акселерометру и гироскопу.</p>
+    <button id="grantAccess">Разрешить доступ</button>
+  </div>
+</div>
+
+<div class="sensor-box">
+  <h3>Ускорение (X, Y, Z):</h3>
+  <p><strong>X:</strong> <span id="accelX">0</span> м/с²</p>
+  <p><strong>Y:</strong> <span id="accelY">0</span> м/с²</p>
+  <p><strong>Z:</strong> <span id="accelZ">0</span> м/с²</p>
+</div>
+
+<div class="sensor-box">
+  <h3>Данные гироскопа (углы):</h3>
+  <p><strong>Alpha (Z):</strong> <span id="gyroAlpha">0</span>°</p>
+  <p><strong>Beta (X):</strong> <span id="gyroBeta">0</span>°</p>
+  <p><strong>Gamma (Y):</strong> <span id="gyroGamma">0</span>°</p>
+</div>
+
+<script>
+  let isSensorAccessGranted = false;
+
+  // Функция обработки акселерометра
+  function startMotionTracking() {
+    window.addEventListener('devicemotion', (event) => {
+      let accelX = event.accelerationIncludingGravity.x.toFixed(2);
+      let accelY = event.accelerationIncludingGravity.y.toFixed(2);
+      let accelZ = event.accelerationIncludingGravity.z.toFixed(2);
+
+      document.getElementById('accelX').textContent = accelX;
+      document.getElementById('accelY').textContent = accelY;
+      document.getElementById('accelZ').textContent = accelZ;
+    });
+  }
+
+  // Функция обработки гироскопа
+  function startOrientationTracking() {
+    window.addEventListener('deviceorientation', (event) => {
+      let alpha = event.alpha ? event.alpha.toFixed(2) : 0;
+      let beta = event.beta ? event.beta.toFixed(2) : 0;
+      let gamma = event.gamma ? event.gamma.toFixed(2) : 0;
+
+      document.getElementById('gyroAlpha').textContent = alpha;
+      document.getElementById('gyroBeta').textContent = beta;
+      document.getElementById('gyroGamma').textContent = gamma;
+    });
+  }
+
+  // Автоматический вызов модального окна при загрузке
+  window.onload = () => {
+    document.getElementById('sensorModal').style.display = 'flex';
+  };
+
+  // Обработка нажатия на кнопку "Разрешить доступ"
+  document.getElementById('grantAccess').addEventListener('click', async () => {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      const motionPermission = await DeviceMotionEvent.requestPermission();
+      const orientationPermission = await DeviceOrientationEvent.requestPermission();
+
+      if (motionPermission === 'granted' && orientationPermission === 'granted') {
+        isSensorAccessGranted = true;
+        startMotionTracking();
+        startOrientationTracking();
+        document.getElementById('sensorModal').style.display = 'none';
+        alert("Доступ к акселерометру и гироскопу разрешён!");
+      } else {
+        alert("Доступ отклонён пользователем.");
+      }
+    } else {
+      // Для Android и устройств, не требующих запросов
+      startMotionTracking();
+      startOrientationTracking();
+      document.getElementById('sensorModal').style.display = 'none';
+      alert("Датчики активированы.");
+    }
+  });
+</script>
+
+</body>
+</html>

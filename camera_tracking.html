@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Center Point Tracking</title>
+  <style>
+    #canvas {
+      border: 1px solid black;
+    }
+  </style>
+</head>
+<body>
+<h1>Tracking Center Point</h1>
+<video id="video" autoplay></video>
+<canvas id="canvas"></canvas>
+
+<script async src="opencv.js" onload="onOpenCvReady();"></script>
+<script>
+  let video, canvas, ctx;
+  let prev_gray, prev_points;
+  let centerPoint;
+
+  function onOpenCvReady() {
+    console.log("OpenCV.js загружен");
+
+    // Инициализация DOM-элементов
+    video = document.getElementById('video');
+    canvas = document.getElementById('canvas');
+    ctx = canvas.getContext('2d');
+
+    // Установка камеры
+    navigator.mediaDevices.getUserMedia({ video: true })
+            .then(function (stream) {
+              video.srcObject = stream;
+              video.play();
+
+              // Установка размеров canvas, как только видео загружено
+              video.addEventListener('loadedmetadata', function () {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                // Установка центральной точки
+                centerPoint = [canvas.width / 2, canvas.height / 2];
+                prev_points = cv.matFromArray(1, 1, cv.CV_32FC2, centerPoint);
+
+                // Запуск обработки кадров
+                requestAnimationFrame(processFrame);
+              });
+            })
+            .catch(function (err) {
+              console.error("Ошибка доступа к камере: ", err);
+            });
+  }
+
+  function processFrame() {
+    if (video.paused || video.ended) return;
+
+    // Рисуем текущий кадр видео на canvas
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Читаем кадр из canvas
+    let src = cv.imread(canvas);
+    cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY);
+
+    if (!prev_gray) {
+      prev_gray = src.clone();
+    }
+
+    // Проверяем, есть ли предыдущие точки
+    if (!prev_points || prev_points.empty()) {
+      console.warn("Отсутствуют точки для трекинга. Установка центральной точки.");
+      centerPoint = [canvas.width / 2, canvas.height / 2];
+      prev_points = cv.matFromArray(1, 1, cv.CV_32FC2, centerPoint);
+    }
+
+    // Трекинг центральной точки
+    let next_points = new cv.Mat();
+    let status = new cv.Mat();
+    let error = new cv.Mat();
+
+    try {
+      cv.calcOpticalFlowPyrLK(prev_gray, src, prev_points, next_points, status, error);
+
+      // Обновляем точку, если трекинг успешен
+      if (status.data[0] === 1) {
+        centerPoint = [next_points.data32F[0], next_points.data32F[1]];
+        prev_points = cv.matFromArray(1, 1, cv.CV_32FC2, centerPoint);
+      } else {
+        console.warn("Точка потеряна. Возврат к центру.");
+        centerPoint = [canvas.width / 2, canvas.height / 2];
+        prev_points = cv.matFromArray(1, 1, cv.CV_32FC2, centerPoint);
+      }
+
+      // Отрисовываем точку
+      ctx.beginPath();
+      ctx.arc(centerPoint[0], centerPoint[1], 5, 0, 2 * Math.PI);
+      ctx.fillStyle = "red";
+      ctx.fill();
+      ctx.closePath();
+
+      // Обновляем кадры для следующей итерации
+      prev_gray = src.clone();
+    } catch (err) {
+      console.error("Ошибка при трекинге: ", err);
+    } finally {
+      // Освобождение памяти
+      src.delete();
+      next_points.delete();
+      status.delete();
+      error.delete();
+    }
+
+    // Повторный вызов для следующего кадра
+    requestAnimationFrame(processFrame);
+  }
+</script>
+
+</body>
+</html>

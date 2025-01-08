@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Point Tracker on Video</title>
+    <script async src="./opencv.js"></script>
+    <script defer src="./tracker.js"></script>
+    <style>
+        #container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+        }
+        video, canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+        }
+        #controls {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h1>Point Tracker (Lucas-Kanade) on Video</h1>
+<div id="container" data-camera="environment">
+    <video id="video" width="640" height="480" autoplay muted></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+</div>
+<div id="controls">
+    <label>
+        <input type="checkbox" id="toggleTracks" checked> Show Tracks
+    </label>
+    <label>
+        <input type="checkbox" id="togglePoints" checked> Show Points
+    </label>
+    <label>
+        <input type="checkbox" id="toggleIDs" checked> Show IDs
+    </label>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const toggleTracksCheckbox = document.getElementById('toggleTracks');
+    const togglePointsCheckbox = document.getElementById('togglePoints');
+    const toggleIDsCheckbox = document.getElementById('toggleIDs');
+
+    let showTracks = true;
+    let showPoints = true;
+    let showIDs = true;
+
+    toggleTracksCheckbox.addEventListener('change', () => {
+        showTracks = toggleTracksCheckbox.checked;
+    });
+
+    togglePointsCheckbox.addEventListener('change', () => {
+        showPoints = togglePointsCheckbox.checked;
+    });
+
+    toggleIDsCheckbox.addEventListener('change', () => {
+        showIDs = toggleIDsCheckbox.checked;
+    });
+
+    function drawTracks(tracks) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 2;
+        ctx.font = '10px Arial';
+
+        Object.keys(tracks).forEach(id => {
+            let track = tracks[id].points;
+            if (!track || track.length === 0) {
+                delete tracks[id];
+                return;
+            }
+
+            if (showTracks && track.length > 1) {
+                ctx.strokeStyle = 'lime';
+                ctx.beginPath();
+                ctx.moveTo(track[0][0], track[0][1]);
+                for (let i = 1; i < track.length; i++) {
+                    ctx.lineTo(track[i][0], track[i][1]);
+                }
+                ctx.stroke();
+            }
+
+            const lastPoint = track[track.length - 1];
+            if (showPoints) {
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(lastPoint[0], lastPoint[1], 5, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            if (showIDs) {
+                ctx.fillStyle = 'white';
+                ctx.fillText(`ID: ${id}`, lastPoint[0] + 7, lastPoint[1] - 7);
+            }
+        });
+    }
+</script>
+</body>
+</html>

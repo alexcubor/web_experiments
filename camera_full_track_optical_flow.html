@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Видеопоток с камеры</title>
+  <script async src="./opencv.js" onload="onOpenCvReady()"></script>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+    }
+    canvas {
+      position: relative;
+      height: 100%;
+      width: auto;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvasOutput"></canvas>
+
+<script>
+  let streaming = false;
+  let mat;
+  let points;
+  let prevGray;
+
+  async function startCamera() {
+    let videoElement;
+    const constraints = {
+      video: {
+        facingMode: 'environment' // 'user' или 'environment'
+      }
+    };
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      videoElement = document.createElement('video');
+      videoElement.srcObject = stream;
+      videoElement.play();
+      videoElement.onloadedmetadata = () => {
+        streaming = true;
+        let canvas = document.getElementById('canvasOutput');
+        canvas.height = window.innerHeight;
+        canvas.width = videoElement.videoWidth * (window.innerHeight / videoElement.videoHeight);
+        mat = new cv.Mat(videoElement.videoHeight, videoElement.videoWidth, cv.CV_8UC4);
+        prevGray = new cv.Mat();
+        points = new cv.Mat();
+        processVideo(videoElement);
+      };
+    } catch (error) {
+      console.error('Ошибка доступа к камере:', error);
+    }
+  }
+
+  function processVideo(videoElement) {
+    if (!streaming) return;
+    let canvas = document.getElementById('canvasOutput');
+    let ctx = canvas.getContext('2d');
+
+    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+    let src = cv.imread(canvas);
+    if (src.empty()) {
+      src.delete();
+      return;
+    }
+
+    cv.cvtColor(src, mat, cv.COLOR_RGBA2GRAY);
+    if (!prevGray.empty() && !points.empty()) {
+      let nextPoints = new cv.Mat();
+      let status = new cv.Mat();
+      let err = new cv.Mat();
+
+      try {
+        cv.calcOpticalFlowPyrLK(prevGray, mat, points, nextPoints, status, err);
+        for (let i = 0; i < nextPoints.rows; i++) {
+          let x = nextPoints.data32F[i * 2];
+          let y = nextPoints.data32F[i * 2 + 1];
+          cv.circle(src, new cv.Point(x, y), 5, [255, 0, 0, 255], -1);
+        }
+        nextPoints.copyTo(points);
+      } catch (e) {
+        console.error('Ошибка при отслеживании точек:', e);
+        cv.goodFeaturesToTrack(mat, points, 100, 0.01, 10);
+      }
+
+      nextPoints.delete();
+      status.delete();
+      err.delete();
+    } else {
+      cv.goodFeaturesToTrack(mat, points, 100, 0.01, 10);
+    }
+
+    mat.copyTo(prevGray);
+    cv.imshow('canvasOutput', src);
+    src.delete();
+
+    requestAnimationFrame(() => processVideo(videoElement));
+  }
+
+  function onOpenCvReady() {
+    console.log('OpenCV.js загружен');
+    startCamera();
+  }
+</script>
+</body>
+</html>
